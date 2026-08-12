@@ -1,0 +1,10 @@
+{
+  "frameWidth": 100,
+  "frameHeight": 100,
+  "animations": {
+    "idle":      { "row": 0, "startCol": 0, "frames": 6, "fps": 6 },
+    "listening": { "row": 1, "startCol": 0, "frames": 4, "fps": 8 },
+    "thinking":  { "row": 2, "startCol": 0, "frames": 4, "fps": 8 },
+    "speaking":  { "row": 3, "startCol": 0, "frames": 4, "fps": 10 }
+  }
+}

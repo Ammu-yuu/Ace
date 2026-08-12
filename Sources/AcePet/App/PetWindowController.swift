@@ -2,12 +2,13 @@ import AppKit
 import SwiftUI
 
 /// Creates and configures the always-on-top, transparent, draggable window that
-/// hosts the pet. In Step A this just shows a placeholder; Step B swaps in the
-/// animated sprite view and speech bubble.
+/// hosts the pet. Step B renders the animated sprite view (with a placeholder
+/// fallback); later steps add the speech bubble and voice-driven states.
 @MainActor
 final class PetWindowController {
 
     let window: NSWindow
+    let animator = PetAnimator()
 
     init() {
         let contentSize = NSSize(width: 220, height: 260)
@@ -28,7 +29,7 @@ final class PetWindowController {
         window.isMovableByWindowBackground = true      // drag the pet anywhere
         window.ignoresMouseEvents = false
 
-        window.contentView = NSHostingView(rootView: PetView())
+        window.contentView = NSHostingView(rootView: PetView(animator: animator))
 
         positionBottomRight(size: contentSize)
     }
