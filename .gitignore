@@ -1,0 +1,10 @@
+# SwiftPM
+.build/
+build/
+*.xcodeproj
+
+# macOS
+.DS_Store
+
+# Secrets — never commit
+.env

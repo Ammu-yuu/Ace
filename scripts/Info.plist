@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleName</key>
+    <string>Ace</string>
+    <key>CFBundleDisplayName</key>
+    <string>Ace</string>
+    <key>CFBundleIdentifier</key>
+    <string>com.ace.pet</string>
+    <key>CFBundleExecutable</key>
+    <string>Ace</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleVersion</key>
+    <string>1</string>
+    <key>CFBundleShortVersionString</key>
+    <string>0.1.0</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>13.0</string>
+
+    <!-- Accessory app: no Dock icon, no menu bar (matches .accessory policy). -->
+    <key>LSUIElement</key>
+    <true/>
+
+    <!-- Usage descriptions needed once we turn on voice (Steps C & E). These
+         must be present in the bundle or macOS will hard-deny the permission. -->
+    <key>NSMicrophoneUsageDescription</key>
+    <string>Ace listens to your voice so you can talk to it.</string>
+    <key>NSSpeechRecognitionUsageDescription</key>
+    <string>Ace transcribes your speech so it can understand you.</string>
+</dict>
+</plist>
