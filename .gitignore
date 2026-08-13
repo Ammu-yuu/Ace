@@ -12,5 +12,6 @@ build/
 # Local-only sprite art (copyrighted) — never commit/redistribute
 assets/sprites/
 
-# Original Shimeji-ee package (copyrighted art + app) — local only
+# Original Shimeji-ee package / renamed sprite folders (copyrighted) — local only
 /shimejiee/
+/Shimeji/

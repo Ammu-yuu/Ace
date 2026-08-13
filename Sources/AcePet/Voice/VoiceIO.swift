@@ -2,9 +2,21 @@ import Foundation
 
 /// Microphone → text. Implemented in **Step C** with Apple's on-device `Speech`
 /// framework (`SFSpeechRecognizer`) so no cloud service or API key is required.
+///
+/// Push-to-talk style: `start` begins live recognition (partial transcripts are
+/// delivered via `onUpdate`), and `stop` finalizes and returns the transcript.
 protocol SpeechToText: AnyObject {
-    /// Record a single short utterance and return its transcription.
-    func transcribeOnce() async throws -> String
+    var isRunning: Bool { get }
+
+    /// Ask for microphone + speech-recognition permission. Returns whether both
+    /// were granted.
+    func requestAuthorization() async -> Bool
+
+    /// Begin live recognition. `onUpdate` fires with the running transcript.
+    func start(onUpdate: @escaping (String) -> Void) throws
+
+    /// Stop recognition and return the final transcript.
+    func stop() async -> String
 }
 
 /// Text → spoken audio. Implemented in **Step E** with `AVSpeechSynthesizer`.
@@ -13,14 +25,7 @@ protocol TextToSpeech: AnyObject {
     func stop()
 }
 
-// MARK: - Placeholders (replaced in Steps C & E)
-
-/// No-op STT so the project compiles and the wiring is visible before Step C.
-final class PlaceholderSpeechToText: SpeechToText {
-    func transcribeOnce() async throws -> String {
-        return "(placeholder transcription — real mic input arrives in Step C)"
-    }
-}
+// MARK: - Placeholder TTS (replaced in Step E)
 
 /// No-op TTS placeholder; replaced by AVSpeechSynthesizer in Step E.
 final class PlaceholderTextToSpeech: TextToSpeech {

@@ -7,14 +7,19 @@ import SwiftUI
 @MainActor
 final class PetWindowController {
 
-    let window: NSWindow
+    let window: PetWindow
     let spriteLibrary = SpriteLibrary()
     lazy var animator = PetAnimator(library: spriteLibrary)
+    lazy var viewModel = PetViewModel(
+        stt: AppleSpeechToText(),
+        brain: StubBrain(),          // mock brain — swapped for a real one in Step D
+        animator: animator
+    )
 
     init() {
-        let contentSize = NSSize(width: 220, height: 260)
+        let contentSize = NSSize(width: 300, height: 360)
 
-        window = NSWindow(
+        window = PetWindow(
             contentRect: NSRect(origin: .zero, size: contentSize),
             styleMask: [.borderless],
             backing: .buffered,
@@ -30,7 +35,7 @@ final class PetWindowController {
         window.isMovableByWindowBackground = true      // drag the pet anywhere
         window.ignoresMouseEvents = false
 
-        window.contentView = NSHostingView(rootView: PetView(animator: animator))
+        window.contentView = NSHostingView(rootView: PetView(animator: animator, vm: viewModel))
 
         positionBottomRight(size: contentSize)
     }
