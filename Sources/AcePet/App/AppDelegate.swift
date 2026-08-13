@@ -17,9 +17,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Handy when tuning a sprite sheet: tells you whether Ace found your art
         // or is showing the placeholder.
-        let msg = controller.animator.hasRealSprites
-            ? "Ace: loaded sprite sheet from assets/\n"
-            : "Ace: no sprite sheet found — using placeholder (see assets/README.md)\n"
+        let msg = controller.spriteLibrary.hasRealSprites
+            ? "Ace: loaded sprites [\(controller.spriteLibrary.summary())]\n"
+            : "Ace: no sprites found — using placeholder (see assets/README.md)\n"
         FileHandle.standardError.write(Data(msg.utf8))
     }
 

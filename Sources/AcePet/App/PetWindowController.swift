@@ -8,7 +8,8 @@ import SwiftUI
 final class PetWindowController {
 
     let window: NSWindow
-    let animator = PetAnimator()
+    let spriteLibrary = SpriteLibrary()
+    lazy var animator = PetAnimator(library: spriteLibrary)
 
     init() {
         let contentSize = NSSize(width: 220, height: 260)

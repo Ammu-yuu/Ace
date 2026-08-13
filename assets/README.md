@@ -1,50 +1,56 @@
-# Assets — drop your own sprite sheet here
+# Assets — sprite frames
 
-Ace ships with **no bundled character art**. It draws a placeholder pet in code,
-so nothing copyrighted is included in the app. Add art by dropping two files
-into this folder:
+Ace uses the classic **Shimeji** layout: individual PNG frames (e.g.
+`shime1.png`), grouped into animation clips by `ace.json`.
 
 ```
 assets/
-  ace_sheet.png    # your sprite sheet: a grid of equal-size frames
-  ace.json         # tells Ace how to slice the sheet (see below)
+  ace.json          # maps frames → states (committed; no images)
+  ace.example.json  # a copy you can start from
+  sprites/          # the actual PNG frames  (gitignored — see below)
 ```
 
-As soon as both exist, Ace loads and animates them automatically. Remove them
-and it falls back to the placeholder.
+As soon as `ace.json` + the referenced frames in `sprites/` exist, Ace loads and
+animates them. Otherwise it falls back to a code-drawn placeholder, so the app
+always runs.
 
-## ⚠️ Copyright
-Use art you actually have the rights to — your own drawings, or something
-explicitly licensed for reuse. Don't use frames ripped from a game/anime.
+## ⚠️ Copyright — why `sprites/` is gitignored
+The frames in `sprites/` are copyrighted character art, so they are **never
+committed or pushed** (see the `assets/sprites/` line in `.gitignore`). They live
+only on your machine. A fresh clone of this repo ships **no images** and runs in
+placeholder mode. Only ever put art here that you have the rights to.
 
 ## ace.json format
-The sheet must be a **uniform grid**: every frame the same width/height. Sizes
-and positions are in **pixels** of the PNG. `row` 0 is the **top** row; `col` 0
-is the leftmost column. `startCol` defaults to 0 if omitted.
-
 ```json
 {
-  "frameWidth": 100,
-  "frameHeight": 100,
+  "spritesDir": "sprites",
   "animations": {
-    "idle":      { "row": 0, "startCol": 0, "frames": 6, "fps": 6 },
-    "listening": { "row": 1, "startCol": 0, "frames": 4, "fps": 8 },
-    "thinking":  { "row": 2, "startCol": 0, "frames": 4, "fps": 8 },
-    "speaking":  { "row": 3, "startCol": 0, "frames": 4, "fps": 10 }
+    "idle":      { "frames": ["shime1.png", "shime2.png", "shime3.png"], "fps": 3 },
+    "listening": { "frames": ["shime11.png", "shime12.png"], "fps": 3 },
+    "thinking":  { "frames": ["shime40.png"], "fps": 1 },
+    "speaking":  { "frames": ["shime1.png", "shime35.png"], "fps": 6 }
   }
 }
 ```
 
-Only `idle` is required. Missing states fall back to `idle`. A clip with a
-single frame just shows a still image (no animation).
+- Only `idle` is required; missing states fall back to `idle`.
+- A single-frame clip just shows a still image.
+- `fps` controls playback speed of that clip.
 
-### Steps to use your own sheet
-1. Save your grid sheet as `assets/ace_sheet.png`.
-2. Measure one cell in pixels → set `frameWidth` / `frameHeight`.
-3. For each pose row, set `row` and how many `frames` are in it.
-4. Copy `ace.example.json` → `ace.json` and edit the numbers.
-5. Run `swift run` — Ace animates your art. Tune `fps` to taste.
+## Using a different set of frames
+1. Drop your PNG frames into `assets/sprites/`.
+2. Edit `ace.json` to list which files play for each state, in order.
+3. `swift run` — the startup log prints e.g.
+   `Ace: loaded sprites [idle:3 listening:2 thinking:1 speaking:2]`
+   so you can confirm what loaded (or `no sprites found` → check paths).
 
-> Tip: if your art isn't a clean grid, re-arrange the poses into evenly spaced
-> cells (one row per state) in any image editor first — that's all the loader
-> needs.
+## Current mapping (One Piece "Ace" Shimeji set)
+| State     | Frames                     | Meaning                |
+|-----------|----------------------------|------------------------|
+| idle      | shime1, shime2, shime3     | standing / breathing   |
+| listening | shime11, shime12           | sitting, attentive     |
+| thinking  | shime40                    | hand near face         |
+| speaking  | shime1, shime35            | talking motion         |
+
+There are 46 frames (plus mirrored `-r` variants) available in `sprites/` — remap
+freely by editing `ace.json`.

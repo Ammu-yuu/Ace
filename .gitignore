@@ -8,3 +8,6 @@ build/
 
 # Secrets — never commit
 .env
+
+# Local-only sprite art (copyrighted) — never commit/redistribute
+assets/sprites/

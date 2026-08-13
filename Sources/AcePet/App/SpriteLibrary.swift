@@ -1,28 +1,27 @@
 import AppKit
 
-// MARK: - Sprite sheet config (assets/ace.json)
+// MARK: - Sprite config (assets/ace.json)
 
-/// One animation clip within the sheet: a run of `frames` cells starting at
-/// (`row`, `startCol`), played at `fps`. Coordinates and sizes are in *pixels*
-/// of the actual PNG.
+/// One animation clip: an ordered list of frame image files played at `fps`.
+/// Filenames are relative to the sprites directory (see `SpriteConfig`).
 struct SpriteAnimation: Codable {
-    var row: Int
-    var startCol: Int?
-    var frames: Int
+    var frames: [String]
     var fps: Double
 }
 
-/// Top-level shape of `assets/ace.json`.
+/// Top-level shape of `assets/ace.json`. This is the classic Shimeji layout:
+/// individual PNG frames (e.g. `shime1.png`), grouped into named clips.
 struct SpriteConfig: Codable {
-    var frameWidth: Int
-    var frameHeight: Int
+    /// Folder holding the frame PNGs, relative to `assets/`. Defaults to `sprites`.
+    var spritesDir: String?
     var animations: [String: SpriteAnimation]
 }
 
-/// Loads a sprite sheet (`assets/ace_sheet.png` + `assets/ace.json`) and slices
-/// it into per-state frame arrays. If no sheet is present, `hasRealSprites` is
-/// false and the UI shows the code-drawn placeholder instead — so the app runs
-/// with or without art.
+/// Loads individual sprite frames from `assets/<spritesDir>/` as described by
+/// `assets/ace.json`, grouped by pet state. If the config or images are missing,
+/// `hasRealSprites` is false and the UI shows the code-drawn placeholder — so the
+/// app runs with or without art (and a fresh git clone, which ships no art, still
+/// works).
 final class SpriteLibrary {
 
     private(set) var frames: [PetState: [NSImage]] = [:]
@@ -34,11 +33,20 @@ final class SpriteLibrary {
         load()
     }
 
+    /// A one-line report of what loaded, for the startup diagnostic.
+    func summary() -> String {
+        guard hasRealSprites else { return "no sprites" }
+        let parts = PetState.allCases.compactMap { state -> String? in
+            guard let n = frames[state]?.count else { return nil }
+            return "\(state.rawValue):\(n)"
+        }
+        return parts.joined(separator: " ")
+    }
+
     /// Where to look for `assets/`, in priority order:
     /// 1. Inside a built .app bundle (`Contents/Resources/assets`)
     /// 2. The current working directory (typical for `swift run`)
-    /// 3. The package root, derived from this source file's path (works no
-    ///    matter what the working directory is)
+    /// 3. The package root, derived from this source file's path
     private func assetsDirectory() -> URL? {
         var candidates: [URL] = []
 
@@ -63,35 +71,22 @@ final class SpriteLibrary {
     private func load() {
         guard let dir = assetsDirectory() else { return }
 
-        let sheetURL = dir.appendingPathComponent("ace_sheet.png")
         let jsonURL = dir.appendingPathComponent("ace.json")
-
         guard
-            FileManager.default.fileExists(atPath: sheetURL.path),
             FileManager.default.fileExists(atPath: jsonURL.path),
-            let sheet = NSImage(contentsOf: sheetURL),
             let data = try? Data(contentsOf: jsonURL),
             let config = try? JSONDecoder().decode(SpriteConfig.self, from: data)
         else {
-            return   // no (valid) sheet → placeholder mode
+            return   // no (valid) config → placeholder mode
         }
+
+        let spritesDir = dir.appendingPathComponent(config.spritesDir ?? "sprites")
 
         for (name, anim) in config.animations {
             guard let state = PetState(rawValue: name) else { continue }
 
-            var images: [NSImage] = []
-            let start = anim.startCol ?? 0
-            for i in 0..<max(anim.frames, 0) {
-                let col = start + i
-                let rect = CGRect(
-                    x: col * config.frameWidth,
-                    y: anim.row * config.frameHeight,
-                    width: config.frameWidth,
-                    height: config.frameHeight
-                )
-                if let frame = crop(sheet, to: rect) {
-                    images.append(frame)
-                }
+            let images = anim.frames.compactMap { file -> NSImage? in
+                NSImage(contentsOf: spritesDir.appendingPathComponent(file))
             }
 
             if !images.isEmpty {
@@ -99,16 +94,5 @@ final class SpriteLibrary {
                 fps[state] = anim.fps
             }
         }
-    }
-
-    /// Crop a sub-rectangle out of the sheet. Uses the underlying `CGImage`
-    /// whose origin is top-left in pixel space — which matches how sprite sheets
-    /// are laid out (row 0 at the top).
-    private func crop(_ image: NSImage, to rect: CGRect) -> NSImage? {
-        guard let cg = image.cgImage(forProposedRect: nil, context: nil, hints: nil),
-              let sub = cg.cropping(to: rect) else {
-            return nil
-        }
-        return NSImage(cgImage: sub, size: NSSize(width: rect.width, height: rect.height))
     }
 }
