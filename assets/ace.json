@@ -3,7 +3,9 @@
   "animations": {
     "idle":      { "frames": ["shime1.png"], "fps": 1 },
     "walk":      { "frames": ["shime2.png", "shime1.png", "shime3.png", "shime1.png"], "fps": 7 },
-    "sit":       { "frames": ["shime11.png", "shime12.png"], "fps": 2 },
+    "sit":       { "frames": ["shime11.png", "shime12.png"], "fps": 1.5 },
+    "sleep":     { "frames": ["shime28.png"], "fps": 1 },
+    "blink":     { "frames": ["shime6.png"], "fps": 1 },
     "fall":      { "frames": ["shime4.png"], "fps": 1 },
     "grabbed":   { "frames": ["shime4.png"], "fps": 1 },
     "listening": { "frames": ["shime11.png", "shime12.png"], "fps": 3 },

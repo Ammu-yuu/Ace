@@ -16,6 +16,8 @@ enum PetState: String, CaseIterable, Sendable {
 
     case walk
     case sit
+    case sleep
+    case blink
     case fall
     case grabbed
 }

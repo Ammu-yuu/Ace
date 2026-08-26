@@ -30,11 +30,28 @@ final class PetViewModel: ObservableObject {
     private let historyLimit = 10
 
     private var idleResetTask: Task<Void, Never>?
+    private var ambientTask: Task<Void, Never>?
 
     init(stt: SpeechToText, brain: BrainAdapter, animator: PetAnimator) {
         self.stt = stt
         self.brain = brain
         self.animator = animator
+    }
+
+    /// A brief in-character line from the roaming engine (e.g. "*yawn*"). Shows
+    /// a short bubble without pausing roaming, and never overrides an active turn.
+    func speakAmbient(_ line: String) {
+        guard !isListening, !bubbleVisible else { return }
+        ambientTask?.cancel()
+        userText = ""
+        statusLine = ""
+        replyText = line
+        bubbleVisible = true
+        ambientTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 2_500_000_000)
+            guard let self, !Task.isCancelled, !self.isListening else { return }
+            self.bubbleVisible = false
+        }
     }
 
     /// Tap-to-talk toggle: first tap starts listening, second tap sends.

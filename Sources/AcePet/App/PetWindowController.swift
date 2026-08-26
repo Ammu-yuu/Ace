@@ -56,6 +56,7 @@ final class PetWindowController {
     private func wireInteractions() {
         viewModel.onInteractionStart = { [weak self] in self?.roam.pauseForInteraction() }
         viewModel.onInteractionEnd   = { [weak self] in self?.roam.resumeRoaming() }
+        roam.onAmbient = { [weak self] line in self?.viewModel.speakAmbient(line) }
     }
 
     func show() {
