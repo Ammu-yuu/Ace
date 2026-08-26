@@ -1,12 +1,21 @@
 import Foundation
 
-/// The animation states the pet can be in. Step B drives only `.idle`; the
-/// listening / thinking / speaking states are wired to the voice loop in later
-/// steps (C, E, H). Defining them now means the animator and sprite loader are
-/// ready and we just flip `animator.state` later.
+/// Every animation clip Ace can play. Two groups:
+///
+/// - **Voice states** — driven by the talk loop (Step C): idle, listening,
+///   thinking, speaking.
+/// - **Movement states** — driven by the roaming engine (this step): walk, sit,
+///   fall, grabbed.
+///
+/// A state with no frames in `ace.json` falls back to `idle`.
 enum PetState: String, CaseIterable, Sendable {
     case idle
     case listening
     case thinking
     case speaking
+
+    case walk
+    case sit
+    case fall
+    case grabbed
 }

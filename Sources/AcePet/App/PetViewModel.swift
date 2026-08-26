@@ -3,14 +3,23 @@ import SwiftUI
 
 /// Drives the talk loop and the UI state around it:
 /// mic → speech-to-text → brain → speech bubble, flipping the pet's animation
-/// state (idle → listening → thinking → speaking) along the way.
+/// state (listening → thinking → speaking) along the way.
+///
+/// While a turn is in progress it asks the roaming engine to hold still (via
+/// `onInteractionStart`) and to resume afterwards (`onInteractionEnd`), so Ace
+/// stops walking to talk with you.
 @MainActor
 final class PetViewModel: ObservableObject {
 
     @Published var userText: String = ""
-    @Published var replyText: String = "Hi, I'm Ace. Tap the mic and talk to me."
+    @Published var replyText: String = "Hi, I'm Ace."
     @Published var statusLine: String = ""
     @Published var isListening: Bool = false
+    @Published var bubbleVisible: Bool = false
+
+    /// Set by the owner to pause/resume roaming around a conversation turn.
+    var onInteractionStart: () -> Void = {}
+    var onInteractionEnd: () -> Void = {}
 
     private let stt: SpeechToText
     private let brain: BrainAdapter
@@ -28,7 +37,7 @@ final class PetViewModel: ObservableObject {
         self.animator = animator
     }
 
-    /// Push-to-talk toggle: first tap starts listening, second tap sends.
+    /// Tap-to-talk toggle: first tap starts listening, second tap sends.
     func micTapped() {
         if isListening {
             Task { await finishListening() }
@@ -41,9 +50,11 @@ final class PetViewModel: ObservableObject {
         idleResetTask?.cancel()
 
         guard await stt.requestAuthorization() else {
-            replyText = "I need microphone + speech access. Enable them in System Settings ▸ Privacy & Security."
+            showBubble("I need microphone + speech access. Enable them in System Settings ▸ Privacy & Security.")
             return
         }
+
+        onInteractionStart()               // stop roaming while we talk
 
         do {
             try stt.start { [weak self] partial in
@@ -52,10 +63,11 @@ final class PetViewModel: ObservableObject {
             isListening = true
             userText = ""
             statusLine = "Listening…"
+            bubbleVisible = true
             animator.state = .listening
         } catch {
-            replyText = "Couldn't start the mic: \(error.localizedDescription)"
-            animator.state = .idle
+            showBubble("Couldn't start the mic: \(error.localizedDescription)")
+            endInteraction()
         }
     }
 
@@ -69,7 +81,7 @@ final class PetViewModel: ObservableObject {
 
         guard !trimmed.isEmpty else {
             replyText = "I didn't catch that — try again?"
-            animator.state = .idle
+            scheduleReturnToRoaming(after: 2.0)
             return
         }
 
@@ -83,14 +95,12 @@ final class PetViewModel: ObservableObject {
             append(.init(role: .assistant, text: reply))
             replyText = reply
             statusLine = ""
-
-            // Speak (visually for now; audio TTS arrives in Step E).
-            animator.state = .speaking
-            scheduleIdleReset(after: 2.5)
+            animator.state = .speaking      // audio TTS arrives in Step E
+            scheduleReturnToRoaming(after: 3.0)
         } catch {
             replyText = "Brain error: \(error.localizedDescription)"
             statusLine = ""
-            animator.state = .idle
+            scheduleReturnToRoaming(after: 2.5)
         }
     }
 
@@ -101,12 +111,26 @@ final class PetViewModel: ObservableObject {
         }
     }
 
-    private func scheduleIdleReset(after seconds: Double) {
+    /// Show a one-off message bubble that fades back to roaming.
+    private func showBubble(_ text: String) {
+        replyText = text
+        statusLine = ""
+        userText = ""
+        bubbleVisible = true
+        scheduleReturnToRoaming(after: 3.0)
+    }
+
+    private func scheduleReturnToRoaming(after seconds: Double) {
         idleResetTask?.cancel()
         idleResetTask = Task { [weak self] in
             try? await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
-            guard let self, !Task.isCancelled else { return }
-            if !self.isListening { self.animator.state = .idle }
+            guard let self, !Task.isCancelled, !self.isListening else { return }
+            self.endInteraction()
         }
+    }
+
+    private func endInteraction() {
+        bubbleVisible = false
+        onInteractionEnd()                 // hand control back to the roaming engine
     }
 }

@@ -1,40 +1,83 @@
 import SwiftUI
 
-/// The full pet UI: a speech bubble on top, the animated character in the
-/// middle, and a push-to-talk mic button at the bottom.
+/// Closures the window controller wires to the roaming engine / talk loop.
+struct PetActions {
+    var onTap: () -> Void = {}
+    var onGrabStart: () -> Void = {}
+    var onGrabMove: (CGSize) -> Void = { _ in }
+    var onGrabEnd: () -> Void = {}
+    var onQuit: () -> Void = {}
+}
+
+/// The pet: a speech bubble (only while talking) above a bottom-anchored
+/// character you can **tap to talk** and **drag to move**. Right-click for a menu.
 struct PetView: View {
     @ObservedObject var animator: PetAnimator
     @ObservedObject var vm: PetViewModel
-    @State private var bob = false
+    let actions: PetActions
+
+    @State private var dragging = false
+    private let dragThreshold: CGFloat = 6
 
     var body: some View {
-        VStack(spacing: 8) {
-            SpeechBubble(userText: vm.userText,
-                         reply: vm.replyText,
-                         status: vm.statusLine)
-
-            character
-                .offset(y: bob ? -6 : 0)
-                .animation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true), value: bob)
-
-            MicButton(isListening: vm.isListening) {
-                vm.micTapped()
+        VStack(spacing: 6) {
+            if vm.bubbleVisible {
+                SpeechBubble(userText: vm.userText, reply: vm.replyText, status: vm.statusLine)
+                    .transition(.opacity.combined(with: .move(edge: .bottom)))
             }
+            character
         }
-        .padding(16)
-        .onAppear { bob = true }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+        .padding(.horizontal, 8)
+        .animation(.easeInOut(duration: 0.2), value: vm.bubbleVisible)
     }
 
     @ViewBuilder
     private var character: some View {
+        sprite
+            .frame(width: 140, height: 140)
+            .scaleEffect(x: animator.facingLeft ? -1 : 1, y: 1)   // face travel direction
+            .contentShape(Rectangle())
+            .gesture(dragOrTap)
+            .contextMenu {
+                Button(vm.isListening ? "Stop & send" : "Talk to Ace") { actions.onTap() }
+                Divider()
+                Button("Quit Ace") { actions.onQuit() }
+            }
+    }
+
+    @ViewBuilder
+    private var sprite: some View {
         if let image = animator.currentImage {
             Image(nsImage: image)
                 .resizable()
                 .scaledToFit()
-                .frame(width: 140, height: 140)
         } else {
             PlaceholderPet()
         }
+    }
+
+    /// One gesture that distinguishes a tap (talk) from a drag (move).
+    private var dragOrTap: some Gesture {
+        DragGesture(minimumDistance: 0)
+            .onChanged { value in
+                let distance = hypot(value.translation.width, value.translation.height)
+                guard distance > dragThreshold else { return }
+                if !dragging {
+                    dragging = true
+                    actions.onGrabStart()
+                }
+                actions.onGrabMove(value.translation)
+            }
+            .onEnded { value in
+                let distance = hypot(value.translation.width, value.translation.height)
+                if dragging {
+                    dragging = false
+                    actions.onGrabEnd()
+                } else if distance <= dragThreshold {
+                    actions.onTap()
+                }
+            }
     }
 }
 
@@ -53,7 +96,6 @@ private struct SpeechBubble: View {
                     .foregroundStyle(.secondary)
                     .italic()
             }
-
             if !status.isEmpty {
                 Label(status, systemImage: "waveform")
                     .font(.caption.weight(.medium))
@@ -73,33 +115,11 @@ private struct SpeechBubble: View {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .stroke(.white.opacity(0.15), lineWidth: 1)
         )
-        .frame(width: 240)
+        .frame(width: 220)
     }
 }
 
-// MARK: - Mic button
-
-private struct MicButton: View {
-    let isListening: Bool
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            Image(systemName: isListening ? "stop.fill" : "mic.fill")
-                .font(.system(size: 18, weight: .semibold))
-                .foregroundStyle(.white)
-                .frame(width: 44, height: 44)
-                .background(
-                    Circle().fill(isListening ? Color.red : Color.accentColor)
-                )
-                .shadow(color: .black.opacity(0.25), radius: 4, y: 2)
-        }
-        .buttonStyle(.plain)
-        .help(isListening ? "Stop and send" : "Push to talk")
-    }
-}
-
-// MARK: - Placeholder (used when no sprite sheet is present)
+// MARK: - Placeholder (used when no sprites are present)
 
 private struct PlaceholderPet: View {
     var body: some View {
@@ -113,10 +133,8 @@ private struct PlaceholderPet: View {
                         endPoint: .bottomTrailing
                     )
                 )
-                .frame(width: 140, height: 140)
                 .shadow(color: .black.opacity(0.25), radius: 10, y: 4)
-
-            Text("🐾").font(.system(size: 64))
+            Text("🐾").font(.system(size: 60))
         }
     }
 }
