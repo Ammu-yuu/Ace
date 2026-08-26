@@ -1,8 +1,8 @@
 {
   "spritesDir": "sprites",
   "animations": {
-    "idle":      { "frames": ["shime1.png", "shime2.png", "shime3.png"], "fps": 3 },
-    "walk":      { "frames": ["shime8.png", "shime9.png", "shime10.png", "shime9.png"], "fps": 8 },
+    "idle":      { "frames": ["shime1.png"], "fps": 1 },
+    "walk":      { "frames": ["shime2.png", "shime1.png", "shime3.png", "shime1.png"], "fps": 7 },
     "sit":       { "frames": ["shime11.png", "shime12.png"], "fps": 2 },
     "fall":      { "frames": ["shime4.png"], "fps": 1 },
     "grabbed":   { "frames": ["shime4.png"], "fps": 1 },
