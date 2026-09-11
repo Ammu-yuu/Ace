@@ -32,6 +32,14 @@ final class PetViewModel: ObservableObject {
     private var idleResetTask: Task<Void, Never>?
     private var ambientTask: Task<Void, Never>?
 
+    // End-of-speech (silence) detection.
+    private var silenceMonitor: Task<Void, Never>?
+    private var lastSpeechAt = Date()
+    private var heardSpeech = false
+    private var isFinishing = false
+    private let silenceTimeout: TimeInterval = 1.5   // quiet this long → auto-send
+    private let maxListen: TimeInterval = 20          // safety cap
+
     init(stt: SpeechToText, brain: BrainAdapter, animator: PetAnimator) {
         self.stt = stt
         self.brain = brain
@@ -73,22 +81,59 @@ final class PetViewModel: ObservableObject {
 
         onInteractionStart()               // stop roaming while we talk
 
+        heardSpeech = false
+        isFinishing = false
+        lastSpeechAt = Date()
+
         do {
             try stt.start { [weak self] partial in
-                Task { @MainActor in self?.userText = partial }
+                Task { @MainActor in
+                    guard let self else { return }
+                    self.userText = partial
+                    if !partial.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        self.heardSpeech = true
+                        self.lastSpeechAt = Date()      // reset the silence clock
+                    }
+                }
             }
             isListening = true
             userText = ""
             statusLine = "Listening…"
             bubbleVisible = true
             animator.state = .listening
+            startSilenceMonitor()
         } catch {
             showBubble("Couldn't start the mic: \(error.localizedDescription)")
             endInteraction()
         }
     }
 
+    /// Watches for the user to finish speaking: once they've said something and
+    /// then gone quiet for `silenceTimeout`, auto-send. Also caps a runaway
+    /// session at `maxListen`.
+    private func startSilenceMonitor() {
+        let startedAt = Date()
+        silenceMonitor?.cancel()
+        silenceMonitor = Task { [weak self] in
+            while true {
+                try? await Task.sleep(nanoseconds: 200_000_000)
+                guard let self, !Task.isCancelled, self.isListening else { return }
+                let now = Date()
+                let wentQuiet = self.heardSpeech && now.timeIntervalSince(self.lastSpeechAt) > self.silenceTimeout
+                let tooLong = now.timeIntervalSince(startedAt) > self.maxListen
+                if wentQuiet || tooLong {
+                    await self.finishListening()
+                    return
+                }
+            }
+        }
+    }
+
     private func finishListening() async {
+        guard !isFinishing else { return }     // don't double-fire (tap + auto-stop)
+        isFinishing = true
+        silenceMonitor?.cancel()
+
         let text = await stt.stop()
         isListening = false
         statusLine = ""
