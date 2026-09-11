@@ -19,18 +19,11 @@ protocol SpeechToText: AnyObject {
     func stop() async -> String
 }
 
-/// Text → spoken audio. Implemented in **Step E** with `AVSpeechSynthesizer`.
+/// Text → spoken audio. Two implementations: `AppleTTS` (built-in macOS voice,
+/// free/offline) and `ElevenLabsTTS` (a chosen cloud voice). `completion` fires
+/// when playback finishes (or immediately if it can't speak), so the pet can
+/// return to roaming once it's done "speaking".
 protocol TextToSpeech: AnyObject {
-    func speak(_ text: String)
+    func speak(_ text: String, completion: @escaping () -> Void)
     func stop()
-}
-
-// MARK: - Placeholder TTS (replaced in Step E)
-
-/// No-op TTS placeholder; replaced by AVSpeechSynthesizer in Step E.
-final class PlaceholderTextToSpeech: TextToSpeech {
-    func speak(_ text: String) {
-        print("[TTS placeholder] would speak: \(text)")
-    }
-    func stop() {}
 }

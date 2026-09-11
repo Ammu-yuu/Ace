@@ -23,6 +23,7 @@ final class PetViewModel: ObservableObject {
 
     private let stt: SpeechToText
     private let brain: BrainAdapter
+    private let tts: TextToSpeech
     private let animator: PetAnimator
 
     /// Short rolling conversation history (fuller version in Step F).
@@ -40,9 +41,10 @@ final class PetViewModel: ObservableObject {
     private let silenceTimeout: TimeInterval = 1.5   // quiet this long → auto-send
     private let maxListen: TimeInterval = 20          // safety cap
 
-    init(stt: SpeechToText, brain: BrainAdapter, animator: PetAnimator) {
+    init(stt: SpeechToText, brain: BrainAdapter, tts: TextToSpeech, animator: PetAnimator) {
         self.stt = stt
         self.brain = brain
+        self.tts = tts
         self.animator = animator
     }
 
@@ -157,12 +159,20 @@ final class PetViewModel: ObservableObject {
             append(.init(role: .assistant, text: reply))
             replyText = reply
             statusLine = ""
-            animator.state = .speaking      // audio TTS arrives in Step E
-            scheduleReturnToRoaming(after: 3.0)
+            animator.state = .speaking
+
+            // Speak it aloud; return to roaming when the audio finishes (with a
+            // safety timeout in case the completion never arrives).
+            scheduleReturnToRoaming(after: 20)
+            tts.speak(reply) { [weak self] in
+                Task { @MainActor in self?.scheduleReturnToRoaming(after: 0.4) }
+            }
         } catch {
-            replyText = "Brain error: \(error.localizedDescription)"
+            let message = (error as? BrainError)?.errorDescription
+                ?? "Something went wrong: \(error.localizedDescription)"
+            replyText = message
             statusLine = ""
-            scheduleReturnToRoaming(after: 2.5)
+            scheduleReturnToRoaming(after: 4.0)
         }
     }
 

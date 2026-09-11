@@ -13,9 +13,25 @@ final class PetWindowController {
     lazy var animator = PetAnimator(library: spriteLibrary)
     lazy var viewModel = PetViewModel(
         stt: AppleSpeechToText(),
-        brain: StubBrain(),          // mock brain — swapped for Ollama in Step D
+        brain: Self.makeBrain(),
+        tts: Self.makeVoice(),
         animator: animator
     )
+
+    /// Local Ollama model (private, offline). Configure the model/host in `.env`.
+    private static func makeBrain() -> BrainAdapter {
+        let host = Config.value("OLLAMA_HOST") ?? "http://localhost:11434"
+        let model = Config.value("OLLAMA_MODEL") ?? "llama3.2"
+        return OllamaBrain(host: host, model: model)
+    }
+
+    /// ElevenLabs voice if an API key is present, otherwise the system voice.
+    private static func makeVoice() -> TextToSpeech {
+        let system = AppleTTS()
+        guard let apiKey = Config.value("ELEVENLABS_API_KEY") else { return system }
+        let voiceID = Config.value("ELEVENLABS_VOICE_ID") ?? "tEo3d4j7gzVojBL5Z4Pt"
+        return ElevenLabsTTS(apiKey: apiKey, voiceID: voiceID, fallback: system)
+    }
     private lazy var roam = RoamController(window: window, animator: animator)
 
     init() {

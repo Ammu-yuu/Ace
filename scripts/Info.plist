@@ -29,5 +29,13 @@
     <string>Ace listens to your voice so you can talk to it.</string>
     <key>NSSpeechRecognitionUsageDescription</key>
     <string>Ace transcribes your speech so it can understand you.</string>
+
+    <!-- Allow plain-HTTP requests to localhost (the local Ollama server) while
+         keeping App Transport Security for everything else (ElevenLabs is HTTPS). -->
+    <key>NSAppTransportSecurity</key>
+    <dict>
+        <key>NSAllowsLocalNetworking</key>
+        <true/>
+    </dict>
 </dict>
 </plist>
