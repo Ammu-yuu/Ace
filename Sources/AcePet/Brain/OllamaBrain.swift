@@ -68,7 +68,16 @@ final class OllamaBrain: BrainAdapter {
     }
 }
 
+/// Used when no brain is configured at all. Always replies with a clear,
+/// actionable setup message instead of a vague connection error.
+final class UnconfiguredBrain: BrainAdapter {
+    func reply(to userText: String, history: [BrainMessage]) async throws -> String {
+        throw BrainError.notConfigured
+    }
+}
+
 enum BrainError: LocalizedError {
+    case notConfigured
     case badConfig
     case unreachable
     case unauthorized
@@ -79,6 +88,8 @@ enum BrainError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
+        case .notConfigured:
+            return "I don't have a brain yet — add your Anthropic key to .env (ANTHROPIC_API_KEY=…) and relaunch me."
         case .badConfig:
             return "My brain isn't configured correctly."
         case .unreachable:

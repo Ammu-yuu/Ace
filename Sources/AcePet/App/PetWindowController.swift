@@ -18,16 +18,20 @@ final class PetWindowController {
         animator: animator
     )
 
-    /// Brain selection: use the Claude API when an `ANTHROPIC_API_KEY` is present
-    /// in `.env`, otherwise fall back to a local Ollama model.
+    /// Brain selection:
+    ///  - Claude API when an `ANTHROPIC_API_KEY` is present in `.env`;
+    ///  - else local Ollama if it's been explicitly configured;
+    ///  - else an "unconfigured" brain that tells the user to add a key.
     private static func makeBrain() -> BrainAdapter {
         if let key = Config.value("ANTHROPIC_API_KEY") {
             let model = Config.value("ANTHROPIC_MODEL") ?? "claude-haiku-4-5-20251001"
             return AnthropicBrain(apiKey: key, model: model)
         }
-        let host = Config.value("OLLAMA_HOST") ?? "http://localhost:11434"
-        let model = Config.value("OLLAMA_MODEL") ?? "llama3.2"
-        return OllamaBrain(host: host, model: model)
+        if let host = Config.value("OLLAMA_HOST") ?? Config.value("OLLAMA_MODEL").map({ _ in "http://localhost:11434" }) {
+            let model = Config.value("OLLAMA_MODEL") ?? "llama3.2"
+            return OllamaBrain(host: host, model: model)
+        }
+        return UnconfiguredBrain()
     }
 
     /// ElevenLabs voice if an API key is present, otherwise the system voice.

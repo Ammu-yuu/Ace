@@ -34,7 +34,34 @@ final class WakeWordEngine {
     private var lastChange = Date()
     private var wakeTime = Date()
     private var sessionStart = Date()
+    private var taskEnded = false              // recognition task finished/errored
     private var monitor: Task<Void, Never>?
+
+    // Debug logging is enabled by the ACE_DEBUG env var OR by the presence of a
+    // `~/.ace-debug` flag file (so it works when the app is launched via Finder/
+    // `open`, where env vars and stderr aren't available). Logs go to
+    // `/tmp/ace-wake.log`.
+    private static let debugLogURL = URL(fileURLWithPath: "/tmp/ace-wake.log")
+    private let debug: Bool = {
+        if ProcessInfo.processInfo.environment["ACE_DEBUG"] != nil { return true }
+        let flag = (NSHomeDirectory() as NSString).appendingPathComponent(".ace-debug")
+        return FileManager.default.fileExists(atPath: flag)
+    }()
+    private func log(_ s: String) {
+        guard debug else { return }
+        let line = "\(Self.timestamp()) [wake] \(s)\n"
+        FileHandle.standardError.write(Data(line.utf8))
+        if let data = line.data(using: .utf8) {
+            if let fh = try? FileHandle(forWritingTo: Self.debugLogURL) {
+                fh.seekToEndOfFile(); fh.write(data); try? fh.close()
+            } else {
+                try? data.write(to: Self.debugLogURL)
+            }
+        }
+    }
+    private static func timestamp() -> String {
+        let f = DateFormatter(); f.dateFormat = "HH:mm:ss.SSS"; return f.string(from: Date())
+    }
 
     // Matches "ace", "hey ace", "ace's", "aces" as a whole word.
     private let wakePattern = try! NSRegularExpression(
@@ -51,10 +78,13 @@ final class WakeWordEngine {
         let speechOK = await withCheckedContinuation { (c: CheckedContinuation<Bool, Never>) in
             SFSpeechRecognizer.requestAuthorization { c.resume(returning: $0 == .authorized) }
         }
+        log("auth: speech=\(speechOK)")
         guard speechOK else { return false }
-        return await withCheckedContinuation { (c: CheckedContinuation<Bool, Never>) in
+        let micOK = await withCheckedContinuation { (c: CheckedContinuation<Bool, Never>) in
             AVCaptureDevice.requestAccess(for: .audio) { c.resume(returning: $0) }
         }
+        log("auth: mic=\(micOK)")
+        return micOK
     }
 
     // MARK: Lifecycle
@@ -65,6 +95,7 @@ final class WakeWordEngine {
             onUnavailable("Speech recognition isn't available right now.")
             return
         }
+        log("start: available=\(recognizer.isAvailable) onDevice=\(recognizer.supportsOnDeviceRecognition)")
         startSession()
         mode = .listening
         startMonitor()
@@ -97,6 +128,7 @@ final class WakeWordEngine {
         commandStart = nil
         sessionStart = Date()
         lastChange = Date()
+        taskEnded = false
 
         let request = SFSpeechAudioBufferRecognitionRequest()
         request.shouldReportPartialResults = true
@@ -120,6 +152,7 @@ final class WakeWordEngine {
             return
         }
 
+        log("session started")
         task = recognizer?.recognitionTask(with: request) { [weak self] result, error in
             Task { @MainActor in self?.handle(result: result, error: error) }
         }
@@ -142,11 +175,17 @@ final class WakeWordEngine {
             if newText != transcript {
                 transcript = newText
                 lastChange = Date()
+                log("heard: \"\(newText)\" [mode=\(mode)]")
                 process()
             }
         }
-        // If the task ended (final or error) while we still want to listen, the
-        // monitor will rotate the session; nothing to do here.
+        // The recognition task stops itself after a stretch of silence or ~1 min.
+        // Flag it so the monitor restarts a fresh session promptly (otherwise we
+        // go deaf and miss the wake word).
+        if error != nil || result?.isFinal == true {
+            taskEnded = true
+            log("task ended (final=\(result?.isFinal == true) error=\(error?.localizedDescription ?? "nil"))")
+        }
     }
 
     private func process() {
@@ -170,6 +209,7 @@ final class WakeWordEngine {
         wakeTime = Date()
         lastChange = Date()
         mode = .capturing
+        log("WAKE detected")
         onWake()
         onPartialCommand(currentCommand())
     }
@@ -200,16 +240,16 @@ final class WakeWordEngine {
             return true
         case .capturing:
             let command = currentCommand()
-            if !command.isEmpty && now.timeIntervalSince(lastChange) > commandSilence {
+            if !command.isEmpty && (now.timeIntervalSince(lastChange) > commandSilence || taskEnded) {
                 finalizeCommand(command)
-            } else if command.isEmpty && now.timeIntervalSince(wakeTime) > noCommandTimeout {
-                // Heard "Ace" but no request followed — go back to idle.
+            } else if command.isEmpty && (now.timeIntervalSince(wakeTime) > noCommandTimeout || taskEnded) {
+                // Heard "Ace" but no request followed (or the task ended) — reset.
                 startSession(); mode = .listening
             }
         case .listening:
-            // Rotate idle sessions so we never hit the ~1-minute task limit, and
-            // recover if the task quietly ended.
-            if now.timeIntervalSince(sessionStart) > sessionRotate || task == nil {
+            // Restart the moment the session ends, and rotate long-lived ones, so
+            // we're never deaf when the wake word is spoken.
+            if taskEnded || now.timeIntervalSince(sessionStart) > sessionRotate {
                 startSession(); mode = .listening
             }
         case .paused:
@@ -219,6 +259,7 @@ final class WakeWordEngine {
     }
 
     private func finalizeCommand(_ command: String) {
+        log("COMMAND: \"\(command)\"")
         tearDownSession()
         mode = .paused                 // stop listening while the reply is handled
         onCommand(command)
