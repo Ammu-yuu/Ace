@@ -12,7 +12,7 @@ import SwiftUI
 final class PetViewModel: ObservableObject {
 
     @Published var userText: String = ""
-    @Published var replyText: String = "Say “Ace” to talk to me."
+    @Published var replyText: String = "Tap me to talk."
     @Published var statusLine: String = ""
     @Published var isListening: Bool = false
     @Published var bubbleVisible: Bool = false
@@ -21,9 +21,15 @@ final class PetViewModel: ObservableObject {
     var onInteractionStart: () -> Void = {}
     var onInteractionEnd: () -> Void = {}
 
+    /// When true, Ace listens continuously for the wake word "Ace". When false
+    /// (the default), the mic only turns on when you tap him — so the macOS mic
+    /// indicator isn't lit the whole time.
+    var handsFree = false
+
     private let wake: WakeWordEngine
     private let brain: BrainAdapter
     private let tts: TextToSpeech
+    private let skills: SkillRouter
     private let animator: PetAnimator
 
     /// Short rolling conversation history.
@@ -33,16 +39,18 @@ final class PetViewModel: ObservableObject {
     private var idleResetTask: Task<Void, Never>?
     private var ambientTask: Task<Void, Never>?
 
-    init(wake: WakeWordEngine, brain: BrainAdapter, tts: TextToSpeech, animator: PetAnimator) {
+    init(wake: WakeWordEngine, brain: BrainAdapter, tts: TextToSpeech, skills: SkillRouter, animator: PetAnimator) {
         self.wake = wake
         self.brain = brain
         self.tts = tts
+        self.skills = skills
         self.animator = animator
     }
 
-    /// Begin always-on, on-device wake-word listening. Call once after the
-    /// window is shown.
-    func beginHandsFree() {
+    /// Wire up voice and request permission. In tap-to-talk mode (the default)
+    /// the mic stays off until you tap Ace; in hands-free mode it also starts
+    /// continuous wake-word listening.
+    func startVoice() {
         wake.onWake = { [weak self] in self?.handleWake() }
         wake.onPartialCommand = { [weak self] partial in self?.userText = partial }
         wake.onCommand = { [weak self] text in Task { await self?.process(text) } }
@@ -54,8 +62,11 @@ final class PetViewModel: ObservableObject {
                 self.showNotice("I need microphone + speech access. Enable them in System Settings ▸ Privacy & Security, then relaunch me.")
                 return
             }
-            self.wake.start()
-            self.showNotice("Say “Ace” to talk to me.")
+            if self.handsFree {
+                self.wake.start()
+                self.showNotice("Say “Ace” to talk to me.")
+            }
+            // Tap-to-talk mode: nothing running until the user taps.
         }
     }
 
@@ -87,7 +98,7 @@ final class PetViewModel: ObservableObject {
         userText = trimmed
 
         guard !trimmed.isEmpty else {
-            replyText = "I didn't catch that — say “Ace” and try again."
+            replyText = "I didn't catch that — tap me and try again."
             endTurn(after: 2.0)
             return
         }
@@ -96,23 +107,33 @@ final class PetViewModel: ObservableObject {
         statusLine = "Thinking…"
         append(.init(role: .user, text: trimmed))
 
+        // 1) Free built-in skills first (dictionary, …) — no LLM, no cost.
+        if let skillReply = await skills.handle(trimmed) {
+            deliver(skillReply)
+            return
+        }
+
+        // 2) Otherwise, fall back to the language-model brain.
         do {
             let reply = try await brain.reply(to: trimmed, history: history)
-            append(.init(role: .assistant, text: reply))
-            replyText = reply
-            statusLine = ""
-            animator.state = .speaking
-
-            // Speak it; end the turn when audio finishes (with a safety timeout).
-            endTurn(after: 20)
-            tts.speak(reply) { [weak self] in
-                Task { @MainActor in self?.endTurn(after: 0.4) }
-            }
+            deliver(reply)
         } catch {
             replyText = (error as? BrainError)?.errorDescription
                 ?? "Something went wrong: \(error.localizedDescription)"
             statusLine = ""
             endTurn(after: 4.0)
+        }
+    }
+
+    /// Show + speak a reply and wind the turn down.
+    private func deliver(_ reply: String) {
+        append(.init(role: .assistant, text: reply))
+        replyText = reply
+        statusLine = ""
+        animator.state = .speaking
+        endTurn(after: 20)                    // safety timeout
+        tts.speak(reply) { [weak self] in
+            Task { @MainActor in self?.endTurn(after: 0.4) }
         }
     }
 
@@ -140,7 +161,8 @@ final class PetViewModel: ObservableObject {
         }
     }
 
-    /// Hide the bubble, resume roaming, and resume wake-word listening.
+    /// Hide the bubble, resume roaming, and either resume wake-word listening
+    /// (hands-free) or fully release the mic (tap-to-talk).
     private func endTurn(after seconds: Double) {
         idleResetTask?.cancel()
         idleResetTask = Task { [weak self] in
@@ -148,7 +170,11 @@ final class PetViewModel: ObservableObject {
             guard let self, !Task.isCancelled, !self.isListening else { return }
             self.bubbleVisible = false
             self.onInteractionEnd()
-            self.wake.resumeListening()
+            if self.handsFree {
+                self.wake.resumeListening()
+            } else {
+                self.wake.stop()          // mic off until the next tap
+            }
         }
     }
 

@@ -18,8 +18,9 @@ final class PetAnimator: ObservableObject {
         }
     }
 
-    /// Horizontal flip, used by the roaming engine so Ace faces the way it walks.
-    @Published var facingLeft: Bool = false
+    /// Horizontal mirror, set by the roaming engine so Ace faces the way he
+    /// walks. The base sprites face left, so we mirror when he moves right.
+    @Published var flipped: Bool = false
 
     var hasRealSprites: Bool { library.hasRealSprites }
 

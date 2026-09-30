@@ -15,6 +15,7 @@ final class PetWindowController {
         wake: WakeWordEngine(),
         brain: Self.makeBrain(),
         tts: Self.makeVoice(),
+        skills: SkillRouter(),
         animator: animator
     )
 
@@ -88,6 +89,6 @@ final class PetWindowController {
         window.makeKeyAndOrderFront(nil)
         window.orderFrontRegardless()
         roam.start()
-        viewModel.beginHandsFree()      // start always-on wake-word listening
+        viewModel.startVoice()          // tap-to-talk (mic off until tapped)
     }
 }

@@ -36,7 +36,7 @@ struct PetView: View {
     private var character: some View {
         sprite
             .frame(width: 140, height: 140)
-            .scaleEffect(x: animator.facingLeft ? -1 : 1, y: 1)   // face travel direction
+            .scaleEffect(x: animator.flipped ? -1 : 1, y: 1)   // face travel direction
             .contentShape(Rectangle())
             .gesture(dragOrTap)
             .contextMenu {

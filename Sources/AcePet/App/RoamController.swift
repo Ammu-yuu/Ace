@@ -175,7 +175,7 @@ final class RoamController {
 
         posX += direction * speed * dt
         posY = vf.minY
-        animator.facingLeft = direction < 0
+        animator.flipped = direction > 0   // base art faces left; mirror to go right
 
         // Reached a wall before the target: pause, then pick a new spot.
         if posX <= floorMinX() { posX = floorMinX(); syncWindow(); enterStanding(duration: .random(in: 1...2)); return }
