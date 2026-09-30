@@ -39,12 +39,21 @@ final class PetViewModel: ObservableObject {
     private var idleResetTask: Task<Void, Never>?
     private var ambientTask: Task<Void, Never>?
 
+    private let bookReader: BookReader
+
     init(wake: WakeWordEngine, brain: BrainAdapter, tts: TextToSpeech, skills: SkillRouter, animator: PetAnimator) {
         self.wake = wake
         self.brain = brain
         self.tts = tts
         self.skills = skills
         self.animator = animator
+        self.bookReader = BookReader(tts: tts)
+
+        bookReader.onChunk = { [weak self] chunk in
+            self?.replyText = String(chunk.prefix(160))
+            self?.bubbleVisible = true
+        }
+        bookReader.onFinished = { [weak self] in self?.endReading() }
     }
 
     /// Wire up voice and request permission. In tap-to-talk mode (the default)
@@ -70,9 +79,14 @@ final class PetViewModel: ObservableObject {
         }
     }
 
-    /// Tap the pet to talk without saying the wake word.
+    /// Tap the pet: stop reading if he's mid-book, otherwise start a voice turn.
     func micTapped() {
         guard !isListening else { return }
+        if bookReader.isReading {
+            bookReader.stop()
+            endReading()
+            return
+        }
         wake.forceCapture()
     }
 
@@ -103,9 +117,26 @@ final class PetViewModel: ObservableObject {
             return
         }
 
+        append(.init(role: .user, text: trimmed))
+
+        // 0) Read a public-domain book aloud?
+        if bookReader.isReadRequest(trimmed) {
+            animator.state = .thinking
+            statusLine = "Finding a book…"
+            let intro = await bookReader.start(trimmed)
+            if bookReader.isReading {
+                statusLine = ""
+                replyText = intro
+                bubbleVisible = true
+                animator.state = .speaking      // reader drives the TTS; roaming stays paused
+            } else {
+                deliver(intro)                  // it was a read request, but it failed
+            }
+            return
+        }
+
         animator.state = .thinking
         statusLine = "Thinking…"
-        append(.init(role: .user, text: trimmed))
 
         // 1) Free built-in skills first (dictionary, …) — no LLM, no cost.
         if let skillReply = await skills.handle(trimmed) {
@@ -123,6 +154,14 @@ final class PetViewModel: ObservableObject {
             statusLine = ""
             endTurn(after: 4.0)
         }
+    }
+
+    /// Reading finished (or was stopped): hide the bubble and hand control back
+    /// to the roaming engine.
+    private func endReading() {
+        bubbleVisible = false
+        animator.state = .idle
+        onInteractionEnd()          // resume roaming (mic is already off in tap mode)
     }
 
     /// Show + speak a reply and wind the turn down.
