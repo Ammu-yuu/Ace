@@ -71,8 +71,10 @@ final class OllamaBrain: BrainAdapter {
 enum BrainError: LocalizedError {
     case badConfig
     case unreachable
+    case unauthorized
     case modelMissing(String)
     case http(Int)
+    case api(String)
     case badResponse
 
     var errorDescription: String? {
@@ -80,11 +82,15 @@ enum BrainError: LocalizedError {
         case .badConfig:
             return "My brain isn't configured correctly."
         case .unreachable:
-            return "I can't reach Ollama — is it running? Start it, then pull a model."
+            return "I can't reach my brain — is there a connection? Check your setup."
+        case .unauthorized:
+            return "My API key looks invalid — check ANTHROPIC_API_KEY in your .env."
         case .modelMissing(let model):
             return "The \"\(model)\" model isn't installed yet. Run: ollama pull \(model)"
         case .http(let code):
-            return "Ollama returned an error (\(code))."
+            return "My brain returned an error (\(code))."
+        case .api(let message):
+            return message
         case .badResponse:
             return "I got a confusing answer from my brain."
         }

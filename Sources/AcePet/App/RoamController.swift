@@ -64,9 +64,15 @@ final class RoamController {
         timer?.invalidate()
         placeInitially()
         enterStanding(duration: .random(in: 2...4))
-        timer = Timer.scheduledTimer(withTimeInterval: 1.0 / fps, repeats: true) { [weak self] _ in
-            Task { @MainActor in self?.tick() }
+        // Added to `.common` run-loop modes so the pet keeps moving smoothly even
+        // while a menu is open or the user is scrolling/resizing another window.
+        // The timer fires on the main thread, so we run the tick directly (no
+        // async hop) for steadier frame timing.
+        let t = Timer(timeInterval: 1.0 / fps, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.tick() }
         }
+        RunLoop.main.add(t, forMode: .common)
+        timer = t
     }
 
     // MARK: - Conversation coordination
@@ -297,7 +303,12 @@ final class RoamController {
     }
 
     private func syncWindow() {
-        window?.setFrameOrigin(NSPoint(x: posX.rounded(), y: posY.rounded()))
+        guard let window else { return }
+        // Snap to whole device pixels (not whole points): crisp on Retina, and
+        // smoother than integer-point steps because each step is ~0.5pt on 2x.
+        let scale = window.backingScaleFactor
+        let snap: (CGFloat) -> CGFloat = { scale > 0 ? ($0 * scale).rounded() / scale : $0.rounded() }
+        window.setFrameOrigin(NSPoint(x: snap(posX), y: snap(posY)))
     }
 
     private func floorMinX() -> CGFloat { NSScreen.main?.visibleFrame.minX ?? 0 }

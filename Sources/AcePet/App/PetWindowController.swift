@@ -18,8 +18,13 @@ final class PetWindowController {
         animator: animator
     )
 
-    /// Local Ollama model (private, offline). Configure the model/host in `.env`.
+    /// Brain selection: use the Claude API when an `ANTHROPIC_API_KEY` is present
+    /// in `.env`, otherwise fall back to a local Ollama model.
     private static func makeBrain() -> BrainAdapter {
+        if let key = Config.value("ANTHROPIC_API_KEY") {
+            let model = Config.value("ANTHROPIC_MODEL") ?? "claude-haiku-4-5-20251001"
+            return AnthropicBrain(apiKey: key, model: model)
+        }
         let host = Config.value("OLLAMA_HOST") ?? "http://localhost:11434"
         let model = Config.value("OLLAMA_MODEL") ?? "llama3.2"
         return OllamaBrain(host: host, model: model)

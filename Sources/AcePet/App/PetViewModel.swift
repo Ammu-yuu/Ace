@@ -39,6 +39,7 @@ final class PetViewModel: ObservableObject {
     private var heardSpeech = false
     private var isFinishing = false
     private let silenceTimeout: TimeInterval = 1.5   // quiet this long → auto-send
+    private let noSpeechTimeout: TimeInterval = 6      // never heard anything → give up
     private let maxListen: TimeInterval = 20          // safety cap
 
     init(stt: SpeechToText, brain: BrainAdapter, tts: TextToSpeech, animator: PetAnimator) {
@@ -121,9 +122,12 @@ final class PetViewModel: ObservableObject {
                 try? await Task.sleep(nanoseconds: 200_000_000)
                 guard let self, !Task.isCancelled, self.isListening else { return }
                 let now = Date()
+                let elapsed = now.timeIntervalSince(startedAt)
                 let wentQuiet = self.heardSpeech && now.timeIntervalSince(self.lastSpeechAt) > self.silenceTimeout
-                let tooLong = now.timeIntervalSince(startedAt) > self.maxListen
-                if wentQuiet || tooLong {
+                // If nothing was ever transcribed, don't dead-listen — give up early.
+                let heardNothing = !self.heardSpeech && elapsed > self.noSpeechTimeout
+                let tooLong = elapsed > self.maxListen
+                if wentQuiet || heardNothing || tooLong {
                     await self.finishListening()
                     return
                 }
