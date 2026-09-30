@@ -24,7 +24,7 @@ final class PetWindowController {
     ///  - else an "unconfigured" brain that tells the user to add a key.
     private static func makeBrain() -> BrainAdapter {
         if let key = Config.value("ANTHROPIC_API_KEY") {
-            let model = Config.value("ANTHROPIC_MODEL") ?? "claude-haiku-4-5-20251001"
+            let model = Config.value("ANTHROPIC_MODEL") ?? "claude-haiku-4-5"
             return AnthropicBrain(apiKey: key, model: model)
         }
         if let host = Config.value("OLLAMA_HOST") ?? Config.value("OLLAMA_MODEL").map({ _ in "http://localhost:11434" }) {
