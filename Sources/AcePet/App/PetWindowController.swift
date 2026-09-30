@@ -12,7 +12,7 @@ final class PetWindowController {
     let spriteLibrary = SpriteLibrary()
     lazy var animator = PetAnimator(library: spriteLibrary)
     lazy var viewModel = PetViewModel(
-        stt: AppleSpeechToText(),
+        wake: WakeWordEngine(),
         brain: Self.makeBrain(),
         tts: Self.makeVoice(),
         animator: animator
@@ -84,5 +84,6 @@ final class PetWindowController {
         window.makeKeyAndOrderFront(nil)
         window.orderFrontRegardless()
         roam.start()
+        viewModel.beginHandsFree()      // start always-on wake-word listening
     }
 }
